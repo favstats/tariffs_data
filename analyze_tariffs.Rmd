@@ -1,0 +1,128 @@
+---
+title: "Tidy Template"
+author: "Fabio Votta"
+date: "The Date"
+output: html_document
+---
+
+This script is about:
+
+Analyzing retaliatory tariffs
+
+## Packages and Folders
+
+```{r}
+# Install these packages if you don't have theme yet
+# devtools::install_github("favstats/tidytemplate")
+# install.packages("pacman")
+
+pacman::p_load(tidyverse, httr, xlsx, janitor, urbnmapr, glue, totalcensus, ggthemes, tidytemplate)
+
+# Creates folders
+# tidytemplate::data_dir()
+# tidytemplate::images_dir()
+```
+
+
+## Get Brrokings Data
+
+```{r, data}
+
+brookings_url <- "https://www.brookings.edu/wp-content/uploads/2018/09/2018.10.04_Metro_dataappendix_tariffs.xlsx"
+
+GET(brookings_url, write_disk(tf <- tempfile(fileext = ".xlsx")))
+
+tariff_data <- read.xlsx(tf, sheetName = "Areas", startRow = 3) %>% 
+  clean_names() %>% 
+  select(-na:-na_2) %>% 
+  rename(CBSA = fips) %>% 
+  drop_na(CBSA)
+
+tidytemplate::save_it(tariff_data)
+```
+
+## Merging with County Data
+
+```{r}
+tariff_data <- tariff_data %>% 
+  inner_join(totalcensus::dict_cbsa %>% 
+              mutate(county_fips = paste0(STATE, COUNTY)) %>% 
+              select(CBSA, central_outlying, county_fips)) %>% 
+  group_by(county_fips) %>% 
+  summarise_at(vars(total_exports_mil:total_export_supported_jobs_under_retaliation), sum)
+
+#%>% 
+  left_join(urbnmapr::counties)  %>% 
+  ggplot(aes(long, lat, group = group, fill = direct_export_supported_jobs)) +
+  geom_polygon(color = NA) +
+  coord_map() +
+  labs(fill = "Number of Refugees") +
+  theme_map() +
+  viridis::scale_fill_viridis("Number of Refugees", 
+                              direction = -1,
+                              option = "D")  +
+  labs(x = "", y = "",
+       title = "Refugees arriving in the United States of America (2002 - 2018)",
+       caption = "Data: Department of State, Office of Admissions - Refugee Processing Center   \nTotal accepted Refugees in Timerange: 943.338\n   favstats.eu; @favstats   ") +
+  theme(
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+    plot.caption = element_text(size = 10),
+    legend.justification = c(1, 0),
+    legend.position = c(1, 0.1),
+    legend.title = element_text(size = 10), 
+    #axis.ticks.length = unit(3, "cm"),
+    legend.direction = "vertical") +
+  guides(fill = guide_colorbar(barwidth = 0.7, barheight = 10,
+                title.position = "bottom", title.hjust = 0.5,
+                label.theme = element_text(colour = "black", size = 9, angle = 0)))
+
+countydata
+```
+
+
+
+## Analysis / Dataviz
+
+```{r, analysis}
+totalcensus::dict_cbsa #%>% 
+              mutate(county_fips = paste0(STATE, COUNTY)) %>% 
+              select(CBSA, central_outlying, county_fips)
+
+elec2016_url<- "https://raw.githubusercontent.com/mkearney/presidential_election_county_results_2016/master/data/pres.elect16.results.2018.csv"
+              
+elec2016 <- readr::read_csv(elec2016_url)
+
+elec2016 %>% 
+  drop_na(county) %>% 
+  filter(cand %in% c("Donald Trump", "Hillary Clinton")) %>% 
+  rename(county_fips = fips) %>% 
+  left_join(tariff_data) %>% 
+  distinct(county_fips, .keep_all = T) %>% 
+  mutate(share_export_retal = get_percentage(total_exports_under_retaliation_mil, total_exports_mil)) %>% 
+  mutate(direct_jobs_retal = get_percentage(direct_export_supported_jobs_under_retaliation, direct_export_supported_jobs)) %>% 
+  mutate(total_jobs_retal = get_percentage(total_export_supported_jobs_under_retaliation, total_export_supported_jobs)) %>% 
+  mutate(cat_export_retal = cut(share_export_retal,  
+                 breaks = c(0, 3, 6, 12, 20, 100), 
+                 labels = c("0 - 3%", "3 - 6%", 
+                          "6 - 12%", "12 - 20%", 
+                            "20% and above"))) %>% 
+  mutate(cat_jobs_retal = cut(total_jobs_retal,  
+                 breaks = c(0, 3, 6, 12, 20, 100), 
+                 labels = c("0 - 3%", "3 - 6%", 
+                          "6 - 12%", "12 - 20%", 
+                            "20% and above"))) %>% 
+  drop_na(cat_jobs_retal) %>% 
+  ggplot(aes(cat_jobs_retal, pct, color = cat_jobs_retal)) +
+  # geom_violin(alpha = 0.6, fill = NA) +
+  geom_boxplot(width = 0.2, fill = NA) +
+  facet_wrap(~cand) +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+  
+ggsave_it(retalitory_total_exports, width = 14, height = 8)
+```
+
+
+
+## Conclusion
