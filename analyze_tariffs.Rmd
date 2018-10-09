@@ -126,3 +126,39 @@ ggsave_it(retalitory_total_exports, width = 14, height = 8)
 
 
 ## Conclusion
+
+```{r}
+library(Jeb)
+
+jeb_meme <- jeb(country = "Brazil", level = 1)
+
+plot(jeb_meme)
+```
+
+## F
+
+```{r}
+descr_data <- xlsx::read.xlsx("data/county_retaliation.xlsx", sheetName = "description") %>% 
+  na.omit
+
+descr_data
+```
+
+```{r}
+county_retaliation <- xlsx::read.xlsx("data/county_retaliation.xlsx", sheetName = "data") 
+
+county_retaliation
+```
+
+```{r}
+county_retaliation %>% 
+  mutate(c_fips_lgc_ = ifelse(length(c_fips_lgc_) == 4, paste0(0, c_fips_lgc_), c_fips_lgc_) %>% 
+           as.character) %>% 
+  rename(county_fips = c_fips_lgc_) %>% 
+  inner_join(urbnmapr::counties)  %>% 
+  ggplot(aes(long, lat, group = group, fill = share_ret_xn)) +
+  geom_polygon(color = NA) +
+  coord_map() +
+  theme_map() 
+```
+
