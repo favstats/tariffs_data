@@ -16,7 +16,7 @@ Analyzing retaliatory tariffs
 # devtools::install_github("favstats/tidytemplate")
 # install.packages("pacman")
 
-pacman::p_load(tidyverse, httr, xlsx, janitor, urbnmapr, glue, totalcensus, ggthemes, tidytemplate)
+pacman::p_load(tidyverse, httr, janitor, urbnmapr, glue, ggthemes, tidytemplate)
 
 # Creates folders
 # tidytemplate::data_dir()
@@ -138,27 +138,308 @@ plot(jeb_meme)
 ## F
 
 ```{r}
-descr_data <- xlsx::read.xlsx("data/county_retaliation.xlsx", sheetName = "description") %>% 
-  na.omit
+descr_data <- tidytemplate::load_it("data/descr_data.Rdata") 
 
 descr_data
+
+```
+
+Note: Changes to County Data
+
+https://www.economy.com/support/blog/buffet.aspx?did=50094FC4-C32C-4CCA-862A-264BC890E13B
+
+Wade Hampton Census Area, Alaska (02-270)
+Changed name and code to Kusilvak Census Area (02-158) effective July 1, 2015.
+
+Oglala Lakota County, South Dakota (46-102)
+Changed name and code from Shannon County (46-113) effective May 1, 2015.
+
+
+```{r}
+county_retaliation <-  tidytemplate::load_it("data/county_retaliation.Rdata") %>% 
+  mutate(c_fips_lgc_ = ifelse(nchar(c_fips_lgc_) == 4, paste0(0, c_fips_lgc_), c_fips_lgc_))  %>% 
+  mutate(c_fips_lgc_ = case_when(
+    ## Wade Hampton Census Area changed to Kusilvak Census Area
+    c_fips_lgc_ == "02270" ~ "02158",
+    ## Shannon County to Oglala Lakota County
+    c_fips_lgc_ == "46113" ~ "46102",
+    ## Bedford + Bedford City changed to Bedford County
+    c_fips_lgc_ == "51909" ~ "51019",
+    T ~ c_fips_lgc_
+  ))
+
+
+
+
+bea_codes <- tidytemplate::load_it("data/bea_codes2.Rdata") %>% 
+  mutate(bea_codes = as.character(bea_codes)) %>% 
+  mutate(county_fips = as.character(county_fips)) %>% 
+  select(bea_codes, county_fips)
+
+beas <- county_retaliation %>% #filter(c_fips_lgc_ == "15901")
+  inner_join(bea_codes, by = c("c_fips_lgc_" = "bea_codes")) %>% 
+  select(-c_fips_lgc_)
+
+elec2016_url<- "https://github.com/tonmcg/US_County_Level_Election_Results_08-16/raw/master/2016_US_County_Level_Presidential_Results.csv"
+              
+elec2016 <- readr::read_csv(elec2016_url) %>%  
+  # filter(nchar(fips) != 2) %>% 
+  # filter(cand %in% c("Donald Trump", "Hillary Clinton")) %>% 
+  # filter(str_detect(state.name, "Alaska"))
+  mutate(combined_fips = ifelse(nchar(combined_fips) == 4, paste0(0, combined_fips), combined_fips)) %>% 
+  rename(county_fips = combined_fips) %>% 
+  select(-county_name) %>% 
+  mutate(county_fips = case_when(
+    ## Wade Hampton Census Area changed to Kusilvak Census Area
+    county_fips == "02270" ~ "02158",
+    ## Shannon County to Oglala Lakota County
+    county_fips == "46113" ~ "46102",
+    ## Bedford + Bedford City changed to Bedford County
+    county_fips == "51909" ~ "51019",
+    T ~ county_fips
+  ))
+
+# GET("https://query.data.world/s/3eihaxlgaq35ttoq44jrisbzltcadm", write_disk(tf <- tempfile(fileext = ".xlsx")))
+# readxl::read_excel(tf)
+# 
+# elec2016 <- read.xlsx(tf, sheetIndex = 4)
+# 
+# elec2016 <- elec2016 %>% 
+#   clean_names() %>% 
+#   mutate(county_fips = as.character(ansi_code)) 
 ```
 
 ```{r}
-county_retaliation <- xlsx::read.xlsx("data/county_retaliation.xlsx", sheetName = "data") 
+library(ggpmisc)
 
-county_retaliation
-```
+formula <- y ~ poly(x, 2, raw = TRUE)
 
-```{r}
 county_retaliation %>% 
-  mutate(c_fips_lgc_ = ifelse(length(c_fips_lgc_) == 4, paste0(0, c_fips_lgc_), c_fips_lgc_) %>% 
+  rename(county_fips = c_fips_lgc_) %>%
+  bind_rows(beas) %>% 
+  inner_join(elec2016) %>%   
+  mutate(voteshare = per_gop - per_dem) %>% 
+  mutate(per_gop = 100 * per_gop) %>% 
+  mutate(share_ret_xjd = 100 * share_ret_xjd) %>% 
+  # ggplot(aes(voteshare)) +geom_histogram()
+  ggplot(aes(per_gop, share_ret_xjd)) +
+  geom_point(color = "darkgrey") +
+  geom_smooth(method = "lm", formula = formula, color = "black") +
+  stat_poly_eq(aes(label =  paste(..eq.label.., ..rr.label.., sep = "~~~~")),
+               formula = formula, parse = TRUE, size = 5) +
+  theme_minimal() +
+  labs(x = "Trump Vote Share in %\n", y = "Share of total export-supported jobs under retaliation in %",
+       title = "Trump Vote Share associated with Exposure to Retaliatory Tariffs",
+       subtitle = "2017 Share of Export-Supported Jobs in Industries targeted by Partner's Retaliation by County Vote Share (%) in the 2016 U.S. presidential election\n",
+       caption = "Source: Data compiled by Brookings (Census, BEA, BLS, IRS, EIA, Eurostat, Moody's Analytics,\nNAFSA, PIIE, Sabre, and Trade Map, International Trade Centre, www.intracen.org/marketanalysis)\n\nData Visualization by favstats.eu; @favstats") +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    plot.caption = element_text(size = 10),
+    legend.justification = c(1, 0),
+    legend.position = c(1, 0.1),
+    legend.title = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold"),
+    #axis.ticks.length = unit(3, "cm"),
+    legend.direction = "vertical") 
+
+
+ggsave_it(scatter_plot, width = 12, height = 8)
+```
+
+
+FIPS Modifications: 
+
+https://apps.bea.gov/regional/xls/FIPSModifications.xlsx
+
+```{r, fig.width=10, height = 8}
+
+county_retaliation %>% 
+  rename(county_fips = c_fips_lgc_) %>%
+  bind_rows(beas) %>% 
+  inner_join(elec2016) %>%
+  mutate(trump_win = ifelse(per_gop >= .5, "Win", "Lost")) %>% 
+  mutate(per_gop = 100 * per_gop) %>% 
+  mutate(per_dem = 100 * per_dem) %>% 
+  mutate(share_ret_xjd = 100 * share_ret_xjd) %>% 
+  mutate(voteshare = per_gop - per_dem) %>% 
+  # select(share_ret_xjd, voteshare, long, lat, group) %>%
+  # gather(key, value, -long, -lat, -group) %>%
+  # ggplot(aes(long, lat, group = group, fill = value)) +
+  inner_join(urbnmapr::counties) %>% 
+  ggplot(aes(long, lat, 
+             #group = group, 
+             color = voteshare,
+             fill = voteshare, alpha = share_ret_xjd)) +
+  # geom_hex(stat="identity", bins = 20, 
+  #            color = "white",
+  #            size = 0.05) +
+  geom_polygon(color = "white", size = 0.05) +
+  coord_equal() +
+  theme_map() +
+  scale_color_gradient2(low = "#0015BC", mid = "lightgrey", high = "#E9141D") +
+  scale_fill_gradient2(low = "#0015BC", mid = "lightgrey", high = "#E9141D") +
+  theme(
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 14, face = "italic", hjust = 0.5),
+    plot.caption = element_text(size = 10),
+    legend.justification = c(1, 0),
+    legend.position = c(1, 0.1),
+    legend.title = element_text(size = 10), 
+    axis.ticks.length = unit(3, "cm"),
+    # legend.direction = "vertical"
+    )  +
+  guides(fill = guide_colorbar(barwidth = 0.7, barheight = 10,
+                title.position = "bottom", title.hjust = 0.5,
+                label.theme = element_text(colour = "black", size = 9, angle = 0))) +
+  labs(x = "", y = "",
+       title = "Counties that voted for Trump most exposed to Retaliatory Tariffs",
+       subtitle = "2017 Share of Export-Supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share (%) in the 2016 U.S. presidential election",
+       caption = "Source: Data compiled by Brookings (Census, BEA, BLS, IRS, EIA, Eurostat, Moody's Analytics,\nNAFSA, PIIE, Sabre, and Trade Map, International Trade Centre, www.intracen.org/marketanalysis)\n\nData Visualization by favstats.eu; @favstats")
+
+ggsave_it(share_ret_xn_plot, width = 10, height = 10)
+```
+
+
+```{r}
+bea_codes #%>%
+  # anti_join(county_retaliation %>% 
+  # rename(county_fips = c_fips_lgc_) )
+  
+county_retaliation %>% 
+  # rename(county_fips = c_fips_lgc_) %>% 
+  filter(s_name_lgc_lgs_ == "Hawaii") %>% 
+  left_join(bea_codes, by = c("c_fips_lgc_" = "bea_codes"))
+
+beas
+
+library(rvest)
+
+county_data <- read_html("https://en.wikipedia.org/wiki/User:Michael_J/County_table") %>% 
+  # rvest::html_nodes("td") %>% 
+  html_table() %>% 
+  .[[1]] %>% 
+  clean_names()
+
+county_retaliation %>% 
+  rename(county_fips = c_fips_lgc_) %>%
+  bind_rows(beas) %>% 
+  inner_join(elec2016) %>%
+  mutate(per_gop = 100 * per_gop) %>% 
+  mutate(per_dem = 100 * per_dem) %>% 
+  mutate(share_ret_xjd = 100 * share_ret_xjd) %>% 
+  mutate(voteshare = per_gop - per_dem) %>% 
+  left_join(county_data %>%
+     mutate(latitude = parse_number(latitude)) %>%
+     mutate(longitude = -parse_number(longitude)) %>% 
+     mutate(county_fips = ifelse(nchar(fips) == 4, paste0(0, fips), fips)) %>% 
+     select(county_fips, latitude, longitude)
+     ) %>% 
+  arrange(desc(share_ret_xjd)) %>% 
+  ggplot(aes(longitude, latitude)) +
+  geom_hex() +
+  theme_bw()
+```
+
+
+```{r}
+
+urbnmapr::counties %>% 
+  dplyr::left_join(beas) %>% 
+  group_by(county_fips) %>% slice(1) 
+
+county_retaliation %>% 
+  rename(county_fips = c_fips_lgc_) %>%
+  bind_rows(beas) %>% 
+  full_join(urbnmapr::counties) %>% 
+  left_join(elec2016) %>% 
+  filter(is.na(votes_gop)) %>%
+  filter(!is.na(long)) %>%
+  group_by(county_fips) %>% slice(1) 
+
+
+county_retaliation %>% 
+  mutate(c_fips_lgc_ = ifelse(nchar(c_fips_lgc_) == 4, paste0(0, c_fips_lgc_), c_fips_lgc_) %>%
+           as.character) %>%
+  mutate(county_fips = as.character(c_fips_lgc_)) %>% 
+  anti_join(urbnmapr::counties) %>% 
+  arrange(c_name_lgc_) %>% 
+  select(c_name_lgc_, county_fips, everything())  %>% 
+  group_by(county_fips) %>% slice(1) 
+
+urbnmapr::counties %>% 
+  anti_join(county_retaliation %>% 
+              mutate(county_fips = as.character(c_fips_lgc_)) %>%   
+              mutate(county_fips = ifelse(nchar(county_fips) == 4, paste0(0, county_fips), county_fips) %>%
+           as.character)) %>% 
+  group_by(county_fips) %>% slice(1) %>% 
+  arrange(county_name) %>% 
+  select(county_name, county_fips, everything())
+
+
+county_retaliation %>% 
+  mutate(c_fips_lgc_ = ifelse(nchar(c_fips_lgc_) == 4, paste0(0, c_fips_lgc_), c_fips_lgc_) %>%
            as.character) %>% 
-  rename(county_fips = c_fips_lgc_) %>% 
+  anti_join(totalcensus::dict_fips %>% 
+  mutate(c_fips_lgc_ = paste0(STATE, COUNTY)))  %>% 
+  group_by(c_fips_lgc_) %>% slice(1) %>% 
+  mutate(county_fips = c_fips_lgc_) %>% 
   inner_join(urbnmapr::counties)  %>% 
   ggplot(aes(long, lat, group = group, fill = share_ret_xn)) +
   geom_polygon(color = NA) +
   coord_map() +
   theme_map() 
+```
+
+```{r}
+elec2016 %>% 
+  # group_by(st) %>% slice(1)
+  filter(str_detect(county_fips, "15009"))
+```
+
+```{r}
+toilets <-
+    read.csv("data/toilet.csv.csv",
+             header = TRUE, stringsAsFactors = FALSE) %>%
+    mutate(long = Longitude, lat = Latitude) %>%
+    select(ToiletID, long, lat)
+
+p <-
+    ggplot(toilets, aes(x = long, y = lat)) +
+    geom_hex() +
+    coord_equal()
+
+print(p)
+
+
+county_retaliation %>% 
+  rename(county_fips = c_fips_lgc_) %>%
+  bind_rows(beas) %>% 
+  inner_join(elec2016) %>%
+  mutate(trump_win = ifelse(per_gop >= .5, "Win", "Lost")) %>% 
+  mutate(per_gop = 100 * per_gop) %>% 
+  mutate(per_dem = 100 * per_dem) %>% 
+  mutate(share_ret_xjd = 100 * share_ret_xjd) %>% 
+  mutate(voteshare = per_gop - per_dem) %>% 
+  # select(share_ret_xjd, voteshare, long, lat, group) %>%
+  # gather(key, value, -long, -lat, -group) %>%
+  # ggplot(aes(long, lat, group = group, fill = value)) +
+  inner_join(urbnmapr::counties) %>% 
+  group_by(county_fips) %>% 
+  summarise()
+```
+
+```{r}
+pacman::p_load(geogrid, sf, tmap)
+
+# input_file <- system.file("extdata", "london_LA.json", package = "geogrid")
+# original_shapes <- st_read(input_file) %>% st_set_crs(27700)
+# original_shapes$SNAME <- substr(original_shapes$NAME, 1, 4)
+
+
+original_shapes <- st_read("https://github.com/jgoodall/us-maps/raw/master/geojson/county.geo.json") 
+
+wi_details <- calculate_grid(original_shapes)
+wi@data$xcentroid <- coordinates(wi)[,1]
+wi@data$ycentroid <- coordinates(wi)[,2]
 ```
 
