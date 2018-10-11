@@ -1,11 +1,12 @@
-Retaliatory Tariffs
-================
-Fabio Votta
+---
+title: "Retaliatory Tariffs"
+author: "Fabio Votta"
+output: github_document
+---
 
-Packages and Folders
---------------------
+## Packages and Folders
 
-``` r
+```{r}
 # Install these packages if you don't have theme yet
 # devtools::install_github("favstats/tidytemplate")
 # install.packages("pacman")
@@ -17,24 +18,26 @@ pacman::p_load(tidyverse, httr, janitor, ggpmisc, urbnmapr, glue, ggthemes, tidy
 # tidytemplate::images_dir()
 ```
 
-Load Data
----------
+
+## Load Data
 
 Note: Changes to County Data
 
-<https://www.economy.com/support/blog/buffet.aspx?did=50094FC4-C32C-4CCA-862A-264BC890E13B>
+https://www.economy.com/support/blog/buffet.aspx?did=50094FC4-C32C-4CCA-862A-264BC890E13B
 
-Wade Hampton Census Area, Alaska (02-270) Changed name and code to Kusilvak Census Area (02-158) effective July 1, 2015.
+Wade Hampton Census Area, Alaska (02-270)
+Changed name and code to Kusilvak Census Area (02-158) effective July 1, 2015.
 
-Oglala Lakota County, South Dakota (46-102) Changed name and code from Shannon County (46-113) effective May 1, 2015.
+Oglala Lakota County, South Dakota (46-102)
+Changed name and code from Shannon County (46-113) effective May 1, 2015.
 
 Bedford + Bedford City changed to Bedford County
 
-FIPS Modifications:
+FIPS Modifications: 
 
-<https://apps.bea.gov/regional/xls/FIPSModifications.xlsx>
+https://apps.bea.gov/regional/xls/FIPSModifications.xlsx
 
-``` r
+```{r, data}
 ## County Retaliation Data
 county_retaliation <-  tidytemplate::load_it("data/county_retaliation.Rdata") %>% 
   mutate(c_fips_lgc_ = ifelse(nchar(c_fips_lgc_) == 4, paste0(0, c_fips_lgc_), c_fips_lgc_))  %>% 
@@ -74,46 +77,27 @@ elec2016 <- readr::read_csv(elec2016_url) %>%
     county_fips == "51909" ~ "51019",
     T ~ county_fips
   ))
+
+
 ```
 
-    ## Warning: Missing column names filled in: 'X1' [1]
 
-    ## Parsed with column specification:
-    ## cols(
-    ##   X1 = col_integer(),
-    ##   votes_dem = col_double(),
-    ##   votes_gop = col_double(),
-    ##   total_votes = col_double(),
-    ##   per_dem = col_double(),
-    ##   per_gop = col_double(),
-    ##   diff = col_number(),
-    ##   per_point_diff = col_character(),
-    ##   state_abbr = col_character(),
-    ##   county_name = col_character(),
-    ##   combined_fips = col_integer()
-    ## )
+## Combining
 
-Combining
----------
-
-``` r
+```{r}
 retaliation_dat <- county_retaliation %>% 
   rename(county_fips = c_fips_lgc_) %>%
   bind_rows(beas) %>% 
   inner_join(elec2016) %>%   
   mutate(voteshare = per_gop - per_dem)
-```
 
-    ## Joining, by = "county_fips"
-
-``` r
 tidytemplate::save_it(retaliation_dat)
 ```
 
-Scatterplot
------------
 
-``` r
+## Scatterplot
+
+```{r, dataviz, fig.width = 12, fig.height = 8}
 formula <- y ~ poly(x, 2, raw = TRUE)
 
 scatter_plot <- retaliation_dat %>% 
@@ -146,18 +130,14 @@ scatter_plot <- retaliation_dat %>%
     legend.direction = "vertical") 
 
 scatter_plot
-```
 
-![](tariffs_viz_files/figure-markdown_github/dataviz-1.png)
-
-``` r
 ggsave_it(scatter_plot, width = 12, height = 8)
 ```
 
-Mapping
--------
+## Mapping
 
-``` r
+```{r, fig.width=12, fig.height=9}
+
 share_ret_xn_plot <- retaliation_dat %>%
   mutate(trump_win = ifelse(per_gop >= .5, "Win", "Lost")) %>% 
   mutate(per_gop = 100 * per_gop) %>% 
@@ -213,29 +193,21 @@ share_ret_xn_plot <- retaliation_dat %>%
            label = "Share of total export-supported Jobs under Retaliation") +
   annotate(geom = "text", x = -77, y = 48.5, 
            label = "Darker Shaded Counties means greater % of\nExport-Supported Jobs under Retaliation")
-```
-
-    ## Joining, by = "county_fips"
-
-``` r
   # xlim(-124, -60) 
   # ylim(30, 49.38436)
 
 share_ret_xn_plot
-```
 
-![](tariffs_viz_files/images/share_ret_xn_plot.png)
-
-``` r
 # ggsave_it(share_ret_xn_plot, width = 12, height = 9)
 ```
 
-``` r
+
+
+
+```{r, fig.width=12, fig.height = 14}
 cowplot::plot_grid(share_ret_xn_plot, scatter_plot, ncol = 1)
-```
 
-![](tariffs_viz_files/figure-markdown_github/unnamed-chunk-4-1.png)
-
-``` r
 ggsave_it(combined, width = 12, height = 14)
 ```
+
+
