@@ -224,7 +224,7 @@ share_ret_xn_plot <- retaliation_dat %>%
 share_ret_xn_plot
 ```
 
-![](tariffs_viz_files/images/share_ret_xn_plot.png)
+![](images/share_ret_xn_plot.png)
 
 ``` r
 # ggsave_it(share_ret_xn_plot, width = 12, height = 9)
