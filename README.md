@@ -10,11 +10,12 @@ Packages and Folders
 # devtools::install_github("favstats/tidytemplate")
 # install.packages("pacman")
 
-pacman::p_load(tidyverse, httr, janitor, ggpmisc, urbnmapr, glue, ggthemes, tidytemplate, cowplot)
+pacman::p_load(tidyverse, httr, janitor, ggpmisc, urbnmapr, glue, ggthemes, tidytemplate, cowplot, ggpubr)
 
 # Creates folders
 # tidytemplate::data_dir()
 # tidytemplate::images_dir()
+options(scipen = 1)
 ```
 
 Load Data
@@ -114,7 +115,7 @@ Scatterplot
 -----------
 
 ``` r
-formula <- y ~ poly(x, 2, raw = TRUE)
+formula <- y ~ poly(x, 1, raw = TRUE)
 
 scatter_plot <- retaliation_dat %>% 
   mutate(per_gop = 100 * per_gop) %>% 
@@ -131,11 +132,12 @@ scatter_plot <- retaliation_dat %>%
   scale_shape("County Type") +
   labs(x = "Trump Vote Share in %\n", y = "Share of total export-supported jobs under retaliation in %\n",
        title = "Trump Vote Share associated with Exposure to Retaliatory Tariffs",
-       subtitle = "2017 Share of Export-Supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share in the 2016 U.S. Presidential Election\n",
+       subtitle = "2017 Share of export-supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share in the 2016 U.S. Presidential Election\n",
        caption = "Source: Data compiled by Brookings (Census, BEA, BLS, IRS, EIA, Eurostat, Moody's Analytics,\nNAFSA, PIIE, Sabre, and Trade Map, International Trade Centre, www.intracen.org/marketanalysis)\n\nData Visualization by favstats.eu; @favstats") +
   theme(
     plot.title = element_text(size = 18, face = "bold"),
     plot.subtitle = element_text(size = 14, face = "italic"),
+    strip.text = element_text(size = 16, face = "bold"),
     plot.caption = element_text(size = 10, hjust = 0.9),
     legend.justification = c(1, 0),
     legend.position = c(0.98, 0.05),
@@ -143,7 +145,9 @@ scatter_plot <- retaliation_dat %>%
     legend.title = element_text(size = 10),
     axis.title = element_text(size = 12, face = "bold"),
     #axis.ticks.length = unit(3, "cm"),
-    legend.direction = "vertical") 
+    legend.direction = "vertical") +
+  facet_wrap(~h_label_lgc_lgm_lgh_) +
+  ggpubr::stat_cor(label.y = 23)
 
 scatter_plot
 ```
@@ -152,6 +156,52 @@ scatter_plot
 
 ``` r
 ggsave_it(scatter_plot, width = 12, height = 8)
+```
+
+Boxplot
+-------
+
+``` r
+boxes <- retaliation_dat %>% 
+  mutate(per_gop = 100 * per_gop) %>% 
+  mutate(per_dem = 100 * per_dem) %>% 
+  mutate(share_ret_xjd = 100 * share_ret_xjd) %>% 
+  mutate(win = case_when(
+    per_gop > per_dem ~ "Trump Won",
+    per_dem > per_gop ~ "Clinton Won")) %>% 
+  ggplot(aes(win, share_ret_xjd, color = win)) +
+  geom_violin(aes(fill = win), alpha = 0.1) +
+  geom_boxplot(width = 0.2) +
+  facet_wrap(~h_label_lgc_lgm_lgh_) +
+  theme_minimal()  +
+  scale_color_manual(values = c("#0015BC", "#E9141D")) +
+  scale_fill_manual(values = c("#0015BC", "#E9141D")) +
+  guides(color = F, fill = F) +
+  labs(x = "", y = "Share of total export-supported jobs under retaliation in %\n",
+       title = "Counties that voted for Trump more exposed to Retaliatory Tariffs",
+       subtitle = "2017 Share of export-supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share in the 2016 U.S. Presidential Election\n",
+       caption = "Source: Data compiled by Brookings (Census, BEA, BLS, IRS, EIA, Eurostat, Moody's Analytics,\nNAFSA, PIIE, Sabre, and Trade Map, International Trade Centre, www.intracen.org/marketanalysis)\n\nData Visualization by favstats.eu; @favstats") +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    plot.subtitle = element_text(size = 14, face = "italic"),
+    strip.text = element_text(size = 16, face = "bold"),
+    plot.caption = element_text(size = 10, hjust = 0.9),
+    legend.justification = c(1, 0),
+    legend.position = c(0.98, 0.05),
+    legend.background = element_rect(fill = "lightgrey"),
+    legend.title = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold"),
+    #axis.ticks.length = unit(3, "cm"),
+    legend.direction = "vertical") +
+    stat_compare_means() 
+  
+boxes
+```
+
+![](tariffs_viz_files/figure-markdown_github/unnamed-chunk-3-1.png)
+
+``` r
+ggsave_it(boxes, width = 12, height = 8)
 ```
 
 Mapping
@@ -207,12 +257,12 @@ share_ret_xn_plot <- retaliation_dat %>%
   ) +
   labs(x = "", y = "",
        title = "Counties that voted for Trump most exposed to Retaliatory Tariffs",
-       subtitle = "2017 Share of Export-Supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share in the 2016 U.S. Presidential Election",
+       subtitle = "2017 Share of export-supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share in the 2016 U.S. Presidential Election",
        caption = "\nSource: Data compiled by Brookings (Census, BEA, BLS, IRS, EIA, Eurostat, Moody's Analytics,\nNAFSA, PIIE, Sabre, and Trade Map, International Trade Centre, www.intracen.org/marketanalysis)\n\nData Visualization by favstats.eu; @favstats\n") +
-  annotate(geom = "text", x = -80, y = 21.3,#23.3 
+  annotate(geom = "text", x = -80, y = 21.3,#,24.3
            label = "Share of total export-supported Jobs under Retaliation") +
   annotate(geom = "text", x = -77, y = 48.5, 
-           label = "Darker Shaded Counties means greater % of\nExport-Supported Jobs under Retaliation")
+           label = "Darker shaded Counties correspond to greater % of\nexport-supported Jobs under Retaliation") 
 ```
 
     ## Joining, by = "county_fips"
@@ -224,18 +274,131 @@ share_ret_xn_plot <- retaliation_dat %>%
 share_ret_xn_plot
 ```
 
-![](images/share_ret_xn_plot.png)
+![](tariffs_viz_files/figure-markdown_github/unnamed-chunk-4-1.png)
 
 ``` r
-# ggsave_it(share_ret_xn_plot, width = 12, height = 9)
+ggsave_it(share_ret_xn_plot, width = 12, height = 9)
 ```
 
 ``` r
 cowplot::plot_grid(share_ret_xn_plot, scatter_plot, ncol = 1)
 ```
 
-![](tariffs_viz_files/figure-markdown_github/unnamed-chunk-4-1.png)
+![](tariffs_viz_files/figure-markdown_github/unnamed-chunk-5-1.png)
 
 ``` r
 ggsave_it(combined, width = 12, height = 14)
 ```
+
+``` r
+imm_dat <- read_csv2("data/imm_dat.csv") %>% 
+  clean_names() %>% 
+  mutate(state = state_b05006_2016_5_yr_state) %>% 
+  select(county_immigrants, county, total_state_population, state)
+```
+
+    ## Using ',' as decimal and '.' as grouping mark. Use read_delim() for more control.
+
+    ## Parsed with column specification:
+    ## cols(
+    ##   `Round County Immigrants` = col_number(),
+    ##   `Round State Immigrants` = col_number(),
+    ##   `County Immigrants` = col_integer(),
+    ##   `County name` = col_character(),
+    ##   County = col_character(),
+    ##   `Anzahl der Datensätze` = col_integer(),
+    ##   `Origin (B05006 2016 5 yr (State))` = col_character(),
+    ##   `Origin (quickfilter 2)` = col_character(),
+    ##   `Origin (tooltip)` = col_character(),
+    ##   `Origin (quickfilter)` = col_character(),
+    ##   Origin = col_character(),
+    ##   `State (B05006 2016 5 yr (State))` = col_character(),
+    ##   `State Immigrants` = col_integer(),
+    ##   State = col_character(),
+    ##   `Total state immigrant population` = col_integer(),
+    ##   `Total state population` = col_integer()
+    ## )
+
+``` r
+library(rvest)
+```
+
+    ## Loading required package: xml2
+
+    ## 
+    ## Attaching package: 'rvest'
+
+    ## The following object is masked from 'package:purrr':
+    ## 
+    ##     pluck
+
+    ## The following object is masked from 'package:readr':
+    ## 
+    ##     guess_encoding
+
+``` r
+imm_dat <- read_html("https://www.omnisci.com/docs/latest/3_apdx_states.html") %>% 
+  html_table() %>% 
+  .[[2]] %>% 
+  clean_names() %>% 
+  left_join(imm_dat) %>% 
+  mutate(c_name_lgc_ = paste0(county, " (", abbreviation,")"))
+```
+
+    ## Joining, by = "state"
+
+``` r
+formula <- y ~ poly(x, 15, raw = TRUE)
+
+retaliation_dat %>% 
+  left_join(imm_dat) %>% 
+  # fuzzyjoin::stringdist_left_join(imm_dat) %>% 
+  # filter(is.na(county_fips))
+  mutate(share_imms = get_percentage(county_immigrants, total_state_population)) %>% 
+  mutate(per_gop = 100 * per_gop) %>% 
+  mutate(share_ret_xjd = 100 * share_ret_xjd) %>% 
+  # ggplot(aes(voteshare)) +geom_histogram()
+  ggplot(aes(share_imms, per_gop)) +
+  geom_point(aes(color = h_label_lgc_lgm_lgh_, 
+                 shape = h_label_lgc_lgm_lgh_), alpha = 0.5) +
+  # geom_smooth(method = "gam", se = F, color = "black") +
+  # geom_smooth(method = "lm", formula = formula, color = "black") +
+  # stat_poly_eq(aes(label =  paste(..eq.label.., ..rr.label.., sep = "~~~~")),
+               # formula = formula, parse = TRUE, size = 5) +
+  theme_minimal() +
+  scale_color_manual("County Type", values = ggthemes::colorblind_pal()(5)[c(2,4)]) +
+  scale_shape("County Type") +
+  labs(x = "Share of Immigrants in %\n", y = "Trump Vote Share in %",
+       title = "Trump Vote Share in 2016 U.S. Election and Share of Immigrants",
+       # subtitle = "2017 Share of export-supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share in the 2016 U.S. Presidential Election\n",
+       caption = "Source: U.S. Census Bureau's pooled 2012-2016 American Community Survey taken from Migration Policy Institute") +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    plot.subtitle = element_text(size = 14, face = "italic"),
+    plot.caption = element_text(size = 10, hjust = 0.9),
+    legend.justification = c(1, 0),
+    legend.position = c(0.98, 0.8),
+    legend.background = element_rect(fill = "lightgrey"),
+    legend.title = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold"),
+    #axis.ticks.length = unit(3, "cm"),
+    legend.direction = "vertical") 
+```
+
+    ## Joining, by = "c_name_lgc_"
+
+    ## Warning: Column `c_name_lgc_` joining factor and character vector, coercing
+    ## into character vector
+
+    ## Warning: Removed 65 rows containing missing values (geom_point).
+
+![](tariffs_viz_files/figure-markdown_github/unnamed-chunk-6-1.png)
+
+``` r
+  # xlim(-124, -60) 
+  # ylim(30, 49.38436)
+
+ggsave_it(imm_plot, width = 12, height = 8)
+```
+
+    ## Warning: Removed 65 rows containing missing values (geom_point).

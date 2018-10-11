@@ -11,11 +11,12 @@ output: github_document
 # devtools::install_github("favstats/tidytemplate")
 # install.packages("pacman")
 
-pacman::p_load(tidyverse, httr, janitor, ggpmisc, urbnmapr, glue, ggthemes, tidytemplate, cowplot)
+pacman::p_load(tidyverse, httr, janitor, ggpmisc, urbnmapr, glue, ggthemes, tidytemplate, cowplot, ggpubr)
 
 # Creates folders
 # tidytemplate::data_dir()
 # tidytemplate::images_dir()
+options(scipen = 1)
 ```
 
 
@@ -98,7 +99,7 @@ tidytemplate::save_it(retaliation_dat)
 ## Scatterplot
 
 ```{r, dataviz, fig.width = 12, fig.height = 8}
-formula <- y ~ poly(x, 2, raw = TRUE)
+formula <- y ~ poly(x, 1, raw = TRUE)
 
 scatter_plot <- retaliation_dat %>% 
   mutate(per_gop = 100 * per_gop) %>% 
@@ -115,11 +116,12 @@ scatter_plot <- retaliation_dat %>%
   scale_shape("County Type") +
   labs(x = "Trump Vote Share in %\n", y = "Share of total export-supported jobs under retaliation in %\n",
        title = "Trump Vote Share associated with Exposure to Retaliatory Tariffs",
-       subtitle = "2017 Share of Export-Supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share in the 2016 U.S. Presidential Election\n",
+       subtitle = "2017 Share of export-supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share in the 2016 U.S. Presidential Election\n",
        caption = "Source: Data compiled by Brookings (Census, BEA, BLS, IRS, EIA, Eurostat, Moody's Analytics,\nNAFSA, PIIE, Sabre, and Trade Map, International Trade Centre, www.intracen.org/marketanalysis)\n\nData Visualization by favstats.eu; @favstats") +
   theme(
     plot.title = element_text(size = 18, face = "bold"),
     plot.subtitle = element_text(size = 14, face = "italic"),
+    strip.text = element_text(size = 16, face = "bold"),
     plot.caption = element_text(size = 10, hjust = 0.9),
     legend.justification = c(1, 0),
     legend.position = c(0.98, 0.05),
@@ -127,11 +129,55 @@ scatter_plot <- retaliation_dat %>%
     legend.title = element_text(size = 10),
     axis.title = element_text(size = 12, face = "bold"),
     #axis.ticks.length = unit(3, "cm"),
-    legend.direction = "vertical") 
+    legend.direction = "vertical") +
+  facet_wrap(~h_label_lgc_lgm_lgh_) +
+  ggpubr::stat_cor(label.y = 23)
 
 scatter_plot
 
 ggsave_it(scatter_plot, width = 12, height = 8)
+```
+
+## Boxplot
+
+```{r, fig.width = 12, fig.height = 8}
+
+boxes <- retaliation_dat %>% 
+  mutate(per_gop = 100 * per_gop) %>% 
+  mutate(per_dem = 100 * per_dem) %>% 
+  mutate(share_ret_xjd = 100 * share_ret_xjd) %>% 
+  mutate(win = case_when(
+    per_gop > per_dem ~ "Trump Won",
+    per_dem > per_gop ~ "Clinton Won")) %>% 
+  ggplot(aes(win, share_ret_xjd, color = win)) +
+  geom_violin(aes(fill = win), alpha = 0.1) +
+  geom_boxplot(width = 0.2) +
+  facet_wrap(~h_label_lgc_lgm_lgh_) +
+  theme_minimal()  +
+  scale_color_manual(values = c("#0015BC", "#E9141D")) +
+  scale_fill_manual(values = c("#0015BC", "#E9141D")) +
+  guides(color = F, fill = F) +
+  labs(x = "", y = "Share of total export-supported jobs under retaliation in %\n",
+       title = "Counties that voted for Trump more exposed to Retaliatory Tariffs",
+       subtitle = "2017 Share of export-supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share in the 2016 U.S. Presidential Election\n",
+       caption = "Source: Data compiled by Brookings (Census, BEA, BLS, IRS, EIA, Eurostat, Moody's Analytics,\nNAFSA, PIIE, Sabre, and Trade Map, International Trade Centre, www.intracen.org/marketanalysis)\n\nData Visualization by favstats.eu; @favstats") +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    plot.subtitle = element_text(size = 14, face = "italic"),
+    strip.text = element_text(size = 16, face = "bold"),
+    plot.caption = element_text(size = 10, hjust = 0.9),
+    legend.justification = c(1, 0),
+    legend.position = c(0.98, 0.05),
+    legend.background = element_rect(fill = "lightgrey"),
+    legend.title = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold"),
+    #axis.ticks.length = unit(3, "cm"),
+    legend.direction = "vertical") +
+    stat_compare_means() 
+  
+boxes
+
+ggsave_it(boxes, width = 12, height = 8)
 ```
 
 ## Mapping
@@ -187,12 +233,12 @@ share_ret_xn_plot <- retaliation_dat %>%
   ) +
   labs(x = "", y = "",
        title = "Counties that voted for Trump most exposed to Retaliatory Tariffs",
-       subtitle = "2017 Share of Export-Supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share in the 2016 U.S. Presidential Election",
+       subtitle = "2017 Share of export-supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share in the 2016 U.S. Presidential Election",
        caption = "\nSource: Data compiled by Brookings (Census, BEA, BLS, IRS, EIA, Eurostat, Moody's Analytics,\nNAFSA, PIIE, Sabre, and Trade Map, International Trade Centre, www.intracen.org/marketanalysis)\n\nData Visualization by favstats.eu; @favstats\n") +
   annotate(geom = "text", x = -80, y = 21.3,#,24.3
            label = "Share of total export-supported Jobs under Retaliation") +
   annotate(geom = "text", x = -77, y = 48.5, 
-           label = "Darker Shaded Counties means greater % of\nExport-Supported Jobs under Retaliation")
+           label = "Darker shaded Counties correspond to greater % of\nexport-supported Jobs under Retaliation") 
   # xlim(-124, -60) 
   # ylim(30, 49.38436)
 
@@ -208,6 +254,62 @@ ggsave_it(share_ret_xn_plot, width = 12, height = 9)
 cowplot::plot_grid(share_ret_xn_plot, scatter_plot, ncol = 1)
 
 ggsave_it(combined, width = 12, height = 14)
+```
+
+```{r}
+imm_dat <- read_csv2("data/imm_dat.csv") %>% 
+  clean_names() %>% 
+  mutate(state = state_b05006_2016_5_yr_state) %>% 
+  select(county_immigrants, county, total_state_population, state)
+
+library(rvest)
+
+imm_dat <- read_html("https://www.omnisci.com/docs/latest/3_apdx_states.html") %>% 
+  html_table() %>% 
+  .[[2]] %>% 
+  clean_names() %>% 
+  left_join(imm_dat) %>% 
+  mutate(c_name_lgc_ = paste0(county, " (", abbreviation,")"))
+
+formula <- y ~ poly(x, 15, raw = TRUE)
+
+retaliation_dat %>% 
+  left_join(imm_dat) %>% 
+  # fuzzyjoin::stringdist_left_join(imm_dat) %>% 
+  # filter(is.na(county_fips))
+  mutate(share_imms = get_percentage(county_immigrants, total_state_population)) %>% 
+  mutate(per_gop = 100 * per_gop) %>% 
+  mutate(share_ret_xjd = 100 * share_ret_xjd) %>% 
+  # ggplot(aes(voteshare)) +geom_histogram()
+  ggplot(aes(share_imms, per_gop)) +
+  geom_point(aes(color = h_label_lgc_lgm_lgh_, 
+                 shape = h_label_lgc_lgm_lgh_), alpha = 0.5) +
+  # geom_smooth(method = "gam", se = F, color = "black") +
+  # geom_smooth(method = "lm", formula = formula, color = "black") +
+  # stat_poly_eq(aes(label =  paste(..eq.label.., ..rr.label.., sep = "~~~~")),
+               # formula = formula, parse = TRUE, size = 5) +
+  theme_minimal() +
+  scale_color_manual("County Type", values = ggthemes::colorblind_pal()(5)[c(2,4)]) +
+  scale_shape("County Type") +
+  labs(x = "Share of Immigrants in %\n", y = "Trump Vote Share in %",
+       title = "Trump Vote Share in 2016 U.S. Election and Share of Immigrants",
+       # subtitle = "2017 Share of export-supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share in the 2016 U.S. Presidential Election\n",
+       caption = "Source: U.S. Census Bureau's pooled 2012-2016 American Community Survey taken from Migration Policy Institute") +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    plot.subtitle = element_text(size = 14, face = "italic"),
+    plot.caption = element_text(size = 10, hjust = 0.9),
+    legend.justification = c(1, 0),
+    legend.position = c(0.98, 0.8),
+    legend.background = element_rect(fill = "lightgrey"),
+    legend.title = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold"),
+    #axis.ticks.length = unit(3, "cm"),
+    legend.direction = "vertical") 
+  # xlim(-124, -60) 
+  # ylim(30, 49.38436)
+
+ggsave_it(imm_plot, width = 12, height = 8)
 ```
 
 
