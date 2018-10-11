@@ -189,7 +189,7 @@ share_ret_xn_plot <- retaliation_dat %>%
        title = "Counties that voted for Trump most exposed to Retaliatory Tariffs",
        subtitle = "2017 Share of Export-Supported Jobs in Industries targeted by Partner's Retaliation\nby County Vote Share in the 2016 U.S. Presidential Election",
        caption = "\nSource: Data compiled by Brookings (Census, BEA, BLS, IRS, EIA, Eurostat, Moody's Analytics,\nNAFSA, PIIE, Sabre, and Trade Map, International Trade Centre, www.intracen.org/marketanalysis)\n\nData Visualization by favstats.eu; @favstats\n") +
-  annotate(geom = "text", x = -80, y = 21.3,#23.3 
+  annotate(geom = "text", x = -80, y = 21.3,#,24.3
            label = "Share of total export-supported Jobs under Retaliation") +
   annotate(geom = "text", x = -77, y = 48.5, 
            label = "Darker Shaded Counties means greater % of\nExport-Supported Jobs under Retaliation")
@@ -198,7 +198,7 @@ share_ret_xn_plot <- retaliation_dat %>%
 
 share_ret_xn_plot
 
-# ggsave_it(share_ret_xn_plot, width = 12, height = 9)
+ggsave_it(share_ret_xn_plot, width = 12, height = 9)
 ```
 
 
